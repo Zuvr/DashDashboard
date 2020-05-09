@@ -6,7 +6,6 @@ from dash.dependencies import Input, Output, State
 import pandas as pd
 from datetime import datetime as dt
 
-
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
@@ -45,8 +44,11 @@ def update_output(n_clicks, input1, input2date, input3time):
         newrowdf.columns = df.columns
         df = pd.concat([df, newrowdf], ignore_index=True)
         df.to_csv('juggling.csv', index=False)
-        return(html.P('Saved:'),
-               html.P('{} minutes done at {}, {}'.format(input1, input3time, input2date)))
+        return (html.P('Saved:'),
+                html.P('{} minutes done at {}, {}'.format(input1, input3time, input2date)))
+
+
+
 
 
 if __name__ == '__main__':
