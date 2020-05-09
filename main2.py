@@ -190,12 +190,12 @@ dropdown_input = ""
 
 # csv stuff
 def load_data(dataset):
-    df = pd.read_csv(dataset + ".csv")
+    df = pd.read_csv("Data\\" + dataset + ".csv")
     return df
 
 
 def save_data(dataset, df):
-    df.to_csv(dataset + ".csv", index=False)
+    df.to_csv("Data\\" + dataset + ".csv", index=False)
     return True
 
 
@@ -241,7 +241,7 @@ def save_dataset(n_clicks, oldname, newname):
         save_data("datasets", datasets)
         global dropdown_input
         dropdown_input = newname
-        os.rename(oldname+".csv", newname+".csv")
+        os.rename("Data\\" + oldname+".csv", "Data\\" + newname+".csv")
         return ""
 
 
