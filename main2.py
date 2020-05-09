@@ -64,8 +64,8 @@ app.layout = html.Div([
             dcc.DatePickerSingle(
                 id='date-input',
                 min_date_allowed=dt(2019, 1, 1),
-                max_date_allowed=dt.now(),
-                date=str(dt.now().date()),
+                max_date_allowed=dt.now().date(),
+                date=dt.now().date(),
                 display_format='DD/MM/YYYY',
                 month_format='DD/MM/YYYY',
             ),
@@ -74,7 +74,7 @@ app.layout = html.Div([
         dbc.Col(html.Div(
             dbc.Input(
                 id="time-input",
-                value="%s:%s" % (dt.now().time().hour, dt.now().time().minute),
+                value=(dt.now().strftime("%H:%M")),
                 type="time",
             ),
             "Input time box"
