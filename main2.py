@@ -20,6 +20,10 @@ app.layout = html.Div([
                 id="dataset-dropdown",
                 options=[],
                 value="",
+                placeholder="Select Dataset",
+                persisted_props=["value"],
+                persistence_type="session",
+                persistence=True
             ),
         )),
         # Dataset Name
@@ -62,20 +66,20 @@ app.layout = html.Div([
         # Input Date
         dbc.Col(html.Div(
             dcc.DatePickerSingle(
-                id='date-input',
+                id="date-input",
                 min_date_allowed=dt(2019, 1, 1),
                 max_date_allowed=dt.now().date(),
-                date=dt.now().date(),
-                display_format='DD/MM/YYYY',
-                month_format='DD/MM/YYYY',
+                display_format="DD/MM/YYYY",
+                month_format="DD/MM/YYYY",
+                placeholder="Date",
             ),
         )),
         # Input time box
         dbc.Col(html.Div(
             dbc.Input(
                 id="time-input",
-                value=(dt.now().strftime("%H:%M")),
                 type="time",
+                placeholder="Time"
             ),
             "Input time box"
         )),
@@ -92,12 +96,12 @@ app.layout = html.Div([
             dcc.Dropdown(
                 id="timeframe-value-dropdown",
                 options=[
-                    {"label": "Day", "value": "day"},
-                    {"label": "Week", "value": "week"},
-                    {"label": "Month", "value": "month"},
-                    {"label": "Year", "value": "year"},
+                    {"label": "Day", "value": "Day"},
+                    {"label": "Week", "value": "Week"},
+                    {"label": "Month", "value": "Month"},
+                    {"label": "Year", "value": "Year"},
                 ],
-
+                placeholder="Timeframe"
             ),
         )),
 
@@ -110,26 +114,17 @@ app.layout = html.Div([
             ),
         )),
 
-        # New row button
-        dbc.Col(html.Div(
-            dbc.Button(
-                "New Row",
-                id="new-row-button",
-                n_clicks=0,
-            ),
-        )),
-
     ]),
 
     dbc.Row([
         # Graph
         dbc.Col(html.Div(
             dcc.Graph(
-                id='graph',
+                id="graph",
                 figure={
-                    'data': [
-                        {'x': [1, 2, 3], 'y': [4, 1, 2], 'type': 'scatter', 'name': 'Goal'},
-                        {'x': [1, 2, 3], 'y': [2, 4, 5], 'type': 'scatter', 'name': 'Data'},
+                    "data": [
+                        {"x": [1, 2, 3], "y": [4, 1, 2], "type": "scatter", "name": "Goal"},
+                        {"x": [1, 2, 3], "y": [2, 4, 5], "type": "scatter", "name": "Data"},
                     ],
                 },
             )
@@ -138,16 +133,12 @@ app.layout = html.Div([
         # Table
         dbc.Col(html.Div(
             dash_table.DataTable(
-                id='table',
-                columns=[
-                    {"name": "One", "id": "one"},
-                    {"name": "Two", "id": "two"},
-                ],
-                data=[
-                    {"one": 1, "two": 3},
-                    {"one": 2, "two": 4},
-                ],
-                row_selectable='single',
+                id="table",
+                columns=[],
+                data=[],
+                row_selectable="single",
+                selected_rows=[0],
+                page_size=12,
             ),
         )),
 
@@ -176,8 +167,9 @@ app.layout = html.Div([
         )),
 
     ]),
-    html.Div(id='hidden-div-dropdown1', style={"display": "none"}),
-    html.Div(id='hidden-div-dropdown2', style={"display": "none"}),
+    html.Div(id="hidden-div-dropdown1", style={"display": "none"}),
+    html.Div(id="hidden-div-dropdown2", style={"display": "none"}),
+    html.Div(id="hidden-div-table", style={"display": "none"})
 ], style={"width": "95vw"})
 
 
@@ -189,8 +181,15 @@ dropdown_input = ""
 # FUNCTIONS #
 
 # csv stuff
-def load_data(dataset):
+def load_data(dataset, sort=False):
     df = pd.read_csv("Data\\" + dataset + ".csv")
+
+    if sort:
+        # Sort data by date and time and keep empty lines on top
+        df = df.sort_values(by=["date", "time"], ascending=[False, False])
+        empties_mask = df["date"].isna()
+        df = pd.concat([df[empties_mask], df[~empties_mask]])
+
     return df
 
 
@@ -204,22 +203,27 @@ def new_csv():
         return False
     else:
         df = pd.DataFrame(columns=["value", "date", "time", "goal", "timeframe"])
+        df = df.append(pd.Series(dtype="object"), ignore_index=True)
         save_data("New Dataset", df)
         return True
 
 
 # CALLBACKS #
 
+
+# Datasets #
+
 # Dataset dropdown
-@app.callback(Output("dataset-dropdown", "options"),
+@app.callback([Output("dataset-dropdown", "options"),
+               Output("table", "selected_rows")],  # Done to start update chain
               [Input("dataset-dropdown", "value")])
-def dataset_dropdown(value):
+def dataset_dropdown(value_chain):
     datasets = load_data("datasets")
     options = [[] for i in range(len(datasets))]
     for i in range(len(datasets)):
         dataset = datasets.iloc[i, 0]
         options[i] = {"label": dataset, "value": dataset}
-    return options
+    return options, [0]
 
 
 # Dataset name
@@ -236,13 +240,14 @@ def dataset_name(value):
                State("dataset-name-input", "value")])
 def save_dataset(n_clicks, oldname, newname):
     if n_clicks > 0:
-        datasets = load_data("datasets")
-        datasets[datasets["datasets"].str.match(oldname)] = newname
-        save_data("datasets", datasets)
-        global dropdown_input
-        dropdown_input = newname
-        os.rename("Data\\" + oldname+".csv", "Data\\" + newname+".csv")
-        return ""
+        if oldname is not None:
+            datasets = load_data("datasets")
+            datasets[datasets["datasets"].str.match(oldname)] = newname
+            save_data("datasets", datasets)
+            global dropdown_input
+            dropdown_input = newname
+            os.rename("Data\\" + oldname+".csv", "Data\\" + newname+".csv")
+            return ""
 
 
 # Add new dataset
@@ -273,5 +278,93 @@ def update_dropdown(n_clicks_save, n_clicks_new):
         return dropdown_input
 
 
-if __name__ == '__main__':
-    app.run_server(debug=True, host='0.0.0.0')
+# Disable inputs
+@app.callback([Output("value-input", "disabled"),
+               Output("date-input", "disabled"),
+               Output("time-input", "disabled"),
+               Output("goal-value-input", "disabled"),
+               Output("timeframe-value-dropdown", "disabled")],
+              [Input("dataset-dropdown", "value")])
+def disable_inputs(value):
+    if value is None:
+        return True, True, True, True, True
+    else:
+        return False, False, False, False, False
+
+
+# Update table
+@app.callback([Output("table", "columns"),
+               Output("table", "data")],
+              [Input("dataset-dropdown", "value"),
+               Input("hidden-div-table", "children")])  # Done to allow update chain
+def update_table(value, table_chain):
+    if value is not None:
+        data = load_data(value, sort=True)
+
+        if not pd.isna(data["value"][0]):
+            new_row = pd.DataFrame(columns=data.columns)
+            new_row = new_row.append(pd.Series(dtype="object"), ignore_index=True)
+            data = pd.concat([new_row, data]).reset_index(drop=True)
+            save_data(value, data)
+
+        columns = [{"name": i, "id": i} for i in data.columns]
+        data = data.to_dict("records")
+        return columns, data
+    else:
+        return [], []
+
+
+# Edit table info
+@app.callback([Output("value-input", "value"),
+               Output("date-input", "date"),
+               Output("time-input", "value"),
+               Output("goal-value-input", "value"),
+               Output("timeframe-value-dropdown", "value")],
+              [Input("table", "selected_rows")],
+              [State("dataset-dropdown", "value")])
+def edit_table_info(selected_rows, dataset):
+    if (dataset != "") & (dataset is not None) & (selected_rows is not None):
+        data = load_data(dataset, sort=True)
+        data = data.where(pd.notna(data), "")  # convert Nans to empty string to avoid persistence of values in inputs
+
+        value = data.iloc[selected_rows, 0].iloc[0]  # iloc at the end of every statement so that it'll return strings
+        date = data.iloc[selected_rows, 1].iloc[0]
+        datatime = data.iloc[selected_rows, 2].iloc[0]
+        goal = data.iloc[selected_rows, 3].iloc[0]
+        timeframe = data.iloc[selected_rows, 4].iloc[0]
+
+        # default date and time to now for new data
+        if (date == "") | (datatime == ""):
+            date = dt.now().date()
+            datatime = dt.now().strftime("%H:%M")
+
+        return value, date, datatime, goal, timeframe
+    else:
+        return None, None, None, None, None
+
+
+# Save data
+@app.callback(Output("hidden-div-table", "children"),
+              [Input("input-save-button", "n_clicks")],
+              [State("dataset-dropdown", "value"),
+               State("table", "selected_rows"),
+               State("value-input", "value"),
+               State("date-input", "date"),
+               State("time-input", "value"),
+               State("goal-value-input", "value"),
+               State("timeframe-value-dropdown", "value")])
+def save_input(n_clicks, dataset, selected_rows, value, date, datatime, goal, timeframe):
+    if n_clicks > 0:
+        if (value != "") & (date is not None) & (datatime != ""):
+            data = load_data(dataset, sort=True)
+            data.iloc[selected_rows, 0] = value  # iloc at the end of every statement so that it'll return strings
+            data.iloc[selected_rows, 1] = date
+            data.iloc[selected_rows, 2] = datatime
+            data.iloc[selected_rows, 3] = goal
+            data.iloc[selected_rows, 4] = timeframe
+            save_data(dataset, data)
+            return ""
+
+
+if __name__ == "__main__":
+    app.run_server(debug=True, host="0.0.0.0")
