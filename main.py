@@ -3,11 +3,12 @@ import dash_core_components as dcc
 import dash_html_components as html
 import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output, State
+import dash_table
 import pandas as pd
 from datetime import datetime as dt
-import dash_table
 import time
 import os
+import numpy as np
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.JOURNAL])
 
@@ -123,10 +124,10 @@ app.layout = html.Div([
                 id="graph",
                 figure={
                     "data": [
-                        {"x": [1, 2, 3], "y": [4, 1, 2], "type": "scatter", "name": "Goal"},
-                        {"x": [1, 2, 3], "y": [2, 4, 5], "type": "scatter", "name": "Data"},
+                        {"x": [], "y": [], "type": "scatter", "name": "Goal"},
                     ],
                 },
+                animate=False,
             )
         )),
 
@@ -248,6 +249,10 @@ def save_dataset(n_clicks, oldname, newname):
             dropdown_input = newname
             os.rename("Data\\" + oldname+".csv", "Data\\" + newname+".csv")
             return ""
+        else:
+            return None
+    else:
+        return None
 
 
 # Add new dataset
@@ -265,6 +270,10 @@ def new_dataset(n_clicks):
             global dropdown_input
             dropdown_input = newrow[0]
             return ""
+        else:
+            return None
+    else:
+        return None
 
 
 # Update dropdown
@@ -276,6 +285,8 @@ def update_dropdown(n_clicks_save, n_clicks_new):
         time.sleep(0.5)  # wait for global input to save
         global dropdown_input
         return dropdown_input
+    else:
+        return None
 
 
 # Disable inputs
@@ -364,6 +375,81 @@ def save_input(n_clicks, dataset, selected_rows, value, date, datatime, goal, ti
             data.iloc[selected_rows, 4] = timeframe
             save_data(dataset, data)
             return ""
+        else:
+            return None
+    else:
+        return None
+
+
+# Update graph
+@app.callback(Output("graph", "figure"),
+              [Input("dataset-dropdown", "value"),
+               Input("input-save-button", "n_clicks")])  # Done to start update chain
+def update_graph(dataset, n_clicks_chain):
+    if dataset is not None:
+        time.sleep(0.5)
+        data = load_data(dataset, sort=True)
+        data["datetime"] = pd.to_datetime(data["date"] + " " + data["time"])
+
+        # Setting up goal data
+        data["goal"] = data["goal"].fillna(method='bfill')
+        data["timeframe"] = data["timeframe"].fillna(method='bfill')
+        # This used to be here because I thought I needed to offset the datetime to the other direction, I don't :D
+        # data["datetime_prev"] = pd.concat([pd.Series([None], dtype="object"), data["datetime"]]).reset_index(
+        # drop=True)
+        data["datetime_prev"] = data["datetime"].drop(0, axis=0).reset_index(drop=True)
+        data["datetime_delta"] = data["datetime"] - data["datetime_prev"]
+        data["day_delta"] = data["datetime_delta"]/np.timedelta64(1, "D")
+        timeframe_conversion = dict(
+            Day=1,
+            Week=7,
+            Month=30,
+            Year=365,
+        )
+        data["timeframe_days"] = data["timeframe"].map(timeframe_conversion)
+        data.loc[[len(data) - 1], ["day_delta"]] = 1
+        data["goal_delta"] = data["goal"]/data["timeframe_days"]*data["day_delta"]
+        data["goal_cumulative"] = data.loc[::-1, "goal_delta"].cumsum()[::-1]
+        data["value_cumulative"] = data.loc[::-1, "value"].cumsum()[::-1]
+
+
+        # defining axis
+        x = data["datetime"]
+        yvalue = data["value"]
+        ycumulative = data["value_cumulative"]
+        ygoal = data["goal_cumulative"]
+
+    else:
+        x = []
+        yvalue = []
+        ycumulative = []
+        ygoal = []
+
+    figure = {
+        "data": [
+            dict(
+                x=x,
+                y=yvalue,
+                type="scatter",
+                name="Instances",
+            ),
+            dict(
+                x=x,
+                y=ycumulative,
+                type="scatter",
+                name="Progress",
+                line=dict(width=4),
+                marker=dict(size=10)
+            ),
+            dict(
+                x=x,
+                y=ygoal,
+                type="scatter",
+                name="Goal",
+            ),
+        ]
+    }
+    return figure
 
 
 if __name__ == "__main__":
